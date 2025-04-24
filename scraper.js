@@ -1,6 +1,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
+const { execSync } = require('child_process');
 
 // The base URLs you provided (these should not be changed)
 const baseUrls = [
@@ -93,6 +94,9 @@ async function scrapePage(url, currentDepth, maxDepth) {
       });
     }
 
+    // Log the page data being collected for debugging
+    console.log(`Collected Data: ${JSON.stringify(pageData, null, 2)}`);
+
     // Store the page data into the final scraped data
     scrapedData.push(pageData);
 
@@ -109,7 +113,34 @@ async function scrapePage(url, currentDepth, maxDepth) {
     await scrapePage(baseUrl, 0, maxDepth);  // Start at Depth 0
   }
 
+  // Check if scraped data is being populated
+  console.log('Scraping complete. Scraped data:', scrapedData);
+
   // Save the scraped data to a JSON file
   fs.writeFileSync('scrapedData.json', JSON.stringify(scrapedData, null, 2));
-  console.log('Scraping complete! Data saved to scrapedData.json');
+  console.log('Data saved to scrapedData.json');
+
+  // Commit and push the scraped data to GitHub
+  try {
+    // Check if there are any changes to commit
+    execSync('git config --global user.name "github-actions[bot]"');
+    execSync('git config --global user.email "github-actions[bot]@users.noreply.github.com"');
+    
+    // Stage the changes
+    execSync('git add scrapedData.json');
+
+    // Commit only if there are changes
+    const commitMessage = 'chore: update scraped data';
+    execSync(`git commit -m "${commitMessage}"`);
+
+    // Pull to ensure we're up-to-date with the remote
+    execSync('git pull --rebase origin main');
+    
+    // Push the changes
+    execSync('git push origin HEAD:main');
+
+    console.log('Commit and push successful!');
+  } catch (error) {
+    console.error('Error during git commit and push:', error.message);
+  }
 })();
