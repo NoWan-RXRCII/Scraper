@@ -27,18 +27,20 @@ jobs:
 
     - name: Check for changes
       run: |
-        if [[ -f "scrapedData.json" ]]; then
-          echo "scrapedData.json file exists."
-          git status --short | grep "scrapedData.json" || echo "No changes detected in scrapedData.json"
-        else
-          echo "Error: scrapedData.json file does not exist!"
+        if (Test-Path "scrapedData.json") {
+          Write-Output "scrapedData.json file exists."
+          git status --short | Select-String "scrapedData.json" || Write-Output "No changes detected in scrapedData.json"
+        } else {
+          Write-Output "Error: scrapedData.json file does not exist!"
           exit 1
-        fi
+        }
+      shell: pwsh
 
     - name: Commit and push scraped data
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git add scrapedData.json
-        git commit -m "Update scraped data" || echo "No changes to commit."
+        git commit -m "Update scraped data" || Write-Output "No changes to commit."
         git push origin main
+      shell: pwsh
