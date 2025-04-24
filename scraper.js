@@ -48,7 +48,12 @@ async function scrapePage(url) {
     const links = $('a');
     $(links).each((index, link) => {
       let newUrl = $(link).attr('href');
-      
+
+      // If the link is relative, make it absolute
+      if (newUrl && !newUrl.startsWith('http')) {
+        newUrl = `https://help.solidworks.com${newUrl}`;
+      }
+
       // Only follow links that are within the same SolidWorks documentation domain
       if (newUrl && newUrl.startsWith('https://help.solidworks.com/')) {
         scrapePage(newUrl);  // Recursively scrape linked pages
