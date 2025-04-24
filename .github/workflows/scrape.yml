@@ -27,7 +27,7 @@ jobs:
 
     - name: Check for changes
       run: |
-        if [ -f "scrapedData.json" ]; then
+        if [[ -f "scrapedData.json" ]]; then
           echo "scrapedData.json file exists."
           git status --short | grep "scrapedData.json" || echo "No changes detected in scrapedData.json"
         else
