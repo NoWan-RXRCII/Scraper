@@ -33,9 +33,15 @@ async function scrapePage(url, currentDepth, maxDepth) {
     });
     const $ = cheerio.load(response.data);
 
-    // At Level 1, restrict to links within "#interfaceSection"
+    // Determine the section to scrape based on the URL
+    let sectionSelector = '#interfaceSection'; // Default to interfaceSection
+    if (url.includes('swconst')) {
+      sectionSelector = '#enumerationSection'; // Use enumerationSection for swconst
+    }
+
+    // At Level 1, restrict to links within the determined section
     if (currentDepth === 1) {
-      $('#interfaceSection a').each(async (index, link) => {
+      $(`${sectionSelector} a`).each(async (index, link) => {
         let newUrl = $(link).attr('href');
 
         // If the link is relative, make it absolute
