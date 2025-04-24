@@ -11,60 +11,48 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    # Step 1: Checkout repository
-    - name: Checkout repository
-      uses: actions/checkout@v3
+    # 1. Check out the repo
+    - uses: actions/checkout@v4
 
-    # Step 2: Cache Node.js modules
-    - name: Cache Node.js modules
-      uses: actions/cache@v3
-      with:
-        path: C:\Users\runneradmin\AppData\Roaming\npm-cache # Corrected path for Windows npm cache
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
-
-    # Step 3: Set up Node.js
+    # 2. Set up Node.js and enable npm-cache support
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'package-lock.json'
 
-    # Step 4: Install dependencies
+    # 3. Install dependencies
     - name: Install dependencies
-      run: npm install
+      run: npm ci
 
-    # Step 5: Cache scraper results
-    - name: Cache Scraper Results
-      uses: actions/cache@v3
-      with:
-        path: scrapedData.json
-        key: ${{ runner.os }}-scraper-${{ hashFiles('scrapedData.json') }}
-        restore-keys: |
-          ${{ runner.os }}-scraper-
-
-    # Step 6: Run scraper
+    # 4. Run the scraper
     - name: Run scraper
       run: node scraper.js
 
-    # Step 7: Verify existence of scrapedData.json
-    - name: Verify existence of scrapedData.json
-      run: |
-        echo "Checking if scrapedData.json exists in the root directory..."
-        if (Test-Path "scrapedData.json") {
-          Write-Host "scrapedData.json exists."
-        } else {
-          Write-Host "Error: scrapedData.json does not exist in the root directory!"
-          exit 1
-        }
-      shell: pwsh
+    # 5. Cache the scraped JSON between runs
+    - name: Cache scraped data
+      uses: actions/cache@v3
+      with:
+        path: scrapedData.json
+        key: scraped-${{ runner.os }}-${{ hashFiles('scrapedData.json') }}
+        restore-keys: |
+          scraped-${{ runner.os }}-
 
-    # Step 8: Commit and push scraped data
-    - name: Commit and push scraped data
+    # 6. Verify the file was created
+    - name: Verify scrapedData.json exists
+      shell: pwsh
       run: |
-        git config --global user.name "github-actions[bot]"
+        if (-Not (Test-Path "scrapedData.json")) {
+          Write-Error "scrapedData.json does not exist!"
+        }
+
+    # 7. Commit & push if the file changed
+    - name: Commit and push scraped data
+      shell: bash
+      run: |
+        git config --global user.name  "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git add scrapedData.json
-        git commit -m "Update scraped data" || echo "No changes to commit."
-        git push origin main
-      shell: bash
+        git diff --cached --quiet || git commit -m "Update scraped data"
+        git push origin HEAD:main
