@@ -2,6 +2,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const { execSync } = require('child_process');
+const puppeteer = require('puppeteer');
 
 // The base URLs you provided (these should not be changed)
 const baseUrls = [
@@ -15,22 +16,35 @@ const visitedUrls = new Set();
 const exampleLinks = new Set();  // Prevent re-scraping examples
 
 async function scrapePage(url, currentDepth, maxDepth) {
-  if (visitedUrls.has(url)) return; // Skip if URL has already been visited
-
+  if (visitedUrls.has(url)) return;
   console.log(`Scraping (depth ${currentDepth}): ${url}`);
   visitedUrls.add(url);
 
   try {
-    const res = await axios.get(url, { headers: { 'User-Agent': 'MyScraperBot/1.0' } });
-    const $ = cheerio.load(res.data);
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-    const pageData = {
-      url,
-      remarks: "",
-      accessors: [],
-      examples: [],
-      see_also: [],
-    };
+    // Extract links from the page
+    const links = await page.$$eval('a', anchors =>
+      anchors.map(anchor => anchor.href).filter(href => href.includes('SolidWorks.Interop'))
+    );
+
+    // Process each link
+    for (let link of links) {
+      if (!visitedUrls.has(link)) {
+        visitedUrls.add(link);
+        if (currentDepth < maxDepth) {
+          await scrapePage(link, currentDepth + 1, maxDepth);
+        }
+      }
+    }
+
+    await browser.close();
+  } catch (error) {
+    console.error(`Error scraping ${url}: ${error.message}`);
+  }
+}
 
     // --- Scrape Depth 0 (Directory Page) ---
     if (currentDepth === 0) {
