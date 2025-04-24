@@ -44,11 +44,13 @@ async function scrapePage(url) {
       });
     });
 
-    // Follow links on the page
+    // Follow links on the page, but only those within the same domain
     const links = $('a');
     $(links).each((index, link) => {
       let newUrl = $(link).attr('href');
-      if (newUrl && newUrl.startsWith('http')) {
+      
+      // Only follow links that are within the same SolidWorks documentation domain
+      if (newUrl && newUrl.startsWith('https://help.solidworks.com/')) {
         scrapePage(newUrl);  // Recursively scrape linked pages
       }
     });
