@@ -2,7 +2,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
 
-// Namespace-level entry points
+// Base URLs for scraping
 const baseUrls = [
   'https://help.solidworks.com/2025/english/api/swdocmgrapi/SolidWorks.Interop.swdocumentmgr~SolidWorks.Interop.swdocumentmgr_namespace.html?id=4044b78005984a01922553042935a3bc#Pg0',
   'https://help.solidworks.com/2025/english/api/swconst/SolidWorks.Interop.swconst~SolidWorks.Interop.swconst_namespace.html?id=4c923420736a49a98458345fd708984e#Pg0',
@@ -15,7 +15,7 @@ const visitedUrls = new Set();
 async function scrapePage(url, currentDepth, maxDepth) {
   if (visitedUrls.has(url)) return;
 
-  console.log(`Scraping (depth ${currentDepth}) → ${url}`);
+  console.log(`Scraping (depth ${currentDepth}): ${url}`);
   visitedUrls.add(url);
 
   try {
@@ -24,39 +24,36 @@ async function scrapePage(url, currentDepth, maxDepth) {
 
     const linksToFollow = [];
 
-    // ───────────────────────────────────────────────────────── depth-0 ──
-    // namespace page → gather interface topics
+    // Depth 0: Namespace page - collect interface links
     if (currentDepth === 0) {
       const match = url.match(/~(.*?)_namespace\.html/);
       if (match) {
-        const ns = match[1];                        // e.g. SolidWorks.Interop.swdocumentmgr
+        const ns = match[1];  // e.g. SolidWorks.Interop.swdocumentmgr
         $('a[href$=".html"]').each((_, a) => {
           const href = $(a).attr('href');
           if (!href) return;
-          if (href.includes(`~${ns}.I`)) {          // only interface topics
-            const abs = new URL(href, url).href;
-            if (!visitedUrls.has(abs)) linksToFollow.push(abs);
+          if (href.includes(`~${ns}.I`)) {  // Only interface topics
+            const absUrl = new URL(href, url).href;
+            if (!visitedUrls.has(absUrl)) linksToFollow.push(absUrl);
           }
         });
       }
     }
 
-    // ───────────────────────────────────────────────────────── depth-1 ──
-    // interface topic → gather example pages
+    // Depth 1: Interface page - collect example links
     if (currentDepth === 1) {
       $('h2, h3').filter((_, h) => $(h).text().trim().startsWith('Example'))
         .nextAll('a').each((_, a) => {
           const href = $(a).attr('href');
           if (!href) return;
-          const abs = new URL(href, url).href;
-          if (abs.match(/\.(htm|html?)$/i) && !visitedUrls.has(abs)) {
-            linksToFollow.push(abs);
+          const absUrl = new URL(href, url).href;
+          if (absUrl.match(/\.(htm|html?)$/i) && !visitedUrls.has(absUrl)) {
+            linksToFollow.push(absUrl);
           }
         });
     }
 
-    // ───────────────────────────────────────────────────────── depth-2 ──
-    // example page → extract code & constants, stop recursion
+    // Depth 2: Example page - extract code snippets and constants
     if (currentDepth === 2) {
       const title = $('h1, h2').first().text().trim();
       $('pre, code').each((_, block) => {
@@ -75,10 +72,10 @@ async function scrapePage(url, currentDepth, maxDepth) {
           scrapedData.push({ constant: constantName, description, url });
         }
       });
-      return;                                       // leaf node
+      return;  // Depth 2 pages don't need further recursion
     }
 
-    // recurse while within depth limit
+    // Recursively follow collected links while within the depth limit
     if (currentDepth < maxDepth) {
       await Promise.all(linksToFollow.map(link => scrapePage(link, currentDepth + 1, maxDepth)));
     }
@@ -89,8 +86,8 @@ async function scrapePage(url, currentDepth, maxDepth) {
 
 (async () => {
   const maxDepth = 2;
-  for (const base of baseUrls) {
-    await scrapePage(base, 0, maxDepth);
+  for (const baseUrl of baseUrls) {
+    await scrapePage(baseUrl, 0, maxDepth);  // Start at depth 0 for each base URL
   }
   fs.writeFileSync('scrapedData.json', JSON.stringify(scrapedData, null, 2));
   console.log(`Scraping complete → ${scrapedData.length} records written to scrapedData.json`);
