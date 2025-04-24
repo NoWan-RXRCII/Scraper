@@ -15,6 +15,7 @@ const scrapedData = [];
 const visitedUrls = new Set();
 const exampleLinks = new Set();  // Prevent re-scraping examples
 
+// Function to scrape a page
 async function scrapePage(url, currentDepth, maxDepth) {
   if (visitedUrls.has(url)) return;
   console.log(`Scraping (depth ${currentDepth}): ${url}`);
@@ -25,95 +26,79 @@ async function scrapePage(url, currentDepth, maxDepth) {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-    // Extract links from the page
-    const links = await page.$$eval('a', anchors =>
-      anchors.map(anchor => anchor.href).filter(href => href.includes('SolidWorks.Interop'))
-    );
-
-    // Process each link
-    for (let link of links) {
-      if (!visitedUrls.has(link)) {
-        visitedUrls.add(link);
-        if (currentDepth < maxDepth) {
-          await scrapePage(link, currentDepth + 1, maxDepth);
-        }
-      }
-    }
-
-    await browser.close();
-  } catch (error) {
-    console.error(`Error scraping ${url}: ${error.message}`);
-  }
-}
-
     // --- Scrape Depth 0 (Directory Page) ---
     if (currentDepth === 0) {
       let linksSelector;
       if (url.includes('swconst')) {
-        // Use enumerationSection for swconst
         linksSelector = '#enumerationSection a';
       } else {
-        // Use interfaceSection for swdocmgrapi and sldworksapi
         linksSelector = '#interfaceSection a';
       }
 
       // Extract links from the selected section
-      $(linksSelector).each((index, link) => {
-        let newUrl = $(link).attr('href');
-        if (newUrl && !newUrl.startsWith('http')) {
-          newUrl = `https://help.solidworks.com${newUrl}`;
-        }
-        if (newUrl && !exampleLinks.has(newUrl)) {
-          exampleLinks.add(newUrl);
-          scrapePage(newUrl, currentDepth + 1, maxDepth);  // Follow the link to Depth 1 page
-        }
+      const links = await page.$$eval(linksSelector, (anchors) => {
+        return anchors.map(anchor => anchor.href).filter(href => href.includes('SolidWorks.Interop'));
       });
+
+      // Process each link
+      for (let link of links) {
+        if (!visitedUrls.has(link)) {
+          visitedUrls.add(link);
+          if (currentDepth < maxDepth) {
+            await scrapePage(link, currentDepth + 1, maxDepth);  // Follow the link to Depth 1 page
+          }
+        }
+      }
     }
 
     // --- Scrape Depth 1 (Interface Page) ---
     if (currentDepth === 1) {
+      const pageData = {
+        url,
+        remarks: "",
+        accessors: [],
+        examples: [],
+        see_also: [],
+      };
+
       // Extract remarks if available
-      if ($('#remarksSection').length > 0) {
-        pageData.remarks = $('#remarksSection').text().trim();
+      const remarks = await page.$eval('#remarksSection', (section) => section ? section.innerText : '');
+      if (remarks) {
+        pageData.remarks = remarks.trim();
       }
 
       // Extract accessors if available
-      $('#accessorsSection a').each((index, link) => {
-        let accessorUrl = $(link).attr('href');
-        if (accessorUrl && !accessorUrl.startsWith('http')) {
-          accessorUrl = `https://help.solidworks.com${accessorUrl}`;
-        }
-        pageData.accessors.push({
-          name: $(link).text(),
-          url: accessorUrl
+      const accessors = await page.$$eval('#accessorsSection a', (links) => {
+        return links.map(link => {
+          const accessorUrl = link.href.startsWith('http') ? link.href : `https://help.solidworks.com${link.href}`;
+          return { name: link.textContent, url: accessorUrl };
         });
       });
+      pageData.accessors = accessors;
 
-      // Extract example code if available (on Depth 1 pages)
-      $('pre').each((index, element) => {
-        const exampleTitle = $(element).prev('h3').text() || `Example ${index + 1}`;
-        pageData.examples.push({
-          title: exampleTitle,
-          example_code: $(element).text().trim(),
-        });
+      // Extract example code if available
+      const examples = await page.$$eval('pre', (codeBlocks) => {
+        return codeBlocks.map((block, index) => ({
+          title: block.previousElementSibling ? block.previousElementSibling.innerText : `Example ${index + 1}`,
+          example_code: block.innerText.trim(),
+        }));
       });
+      pageData.examples = examples;
 
       // Collect "See Also" links
-      $('#seeAlsoSection a').each((index, link) => {
-        let seeAlsoUrl = $(link).attr('href');
-        if (seeAlsoUrl && !seeAlsoUrl.startsWith('http')) {
-          seeAlsoUrl = `https://help.solidworks.com${seeAlsoUrl}`;
-        }
-        pageData.see_also.push(seeAlsoUrl);
+      const seeAlsoLinks = await page.$$eval('#seeAlsoSection a', (links) => {
+        return links.map(link => {
+          const seeAlsoUrl = link.href.startsWith('http') ? link.href : `https://help.solidworks.com${link.href}`;
+          return seeAlsoUrl;
+        });
       });
+      pageData.see_also = seeAlsoLinks;
+
+      console.log(`Collected Data: ${JSON.stringify(pageData, null, 2)}`);
+      scrapedData.push(pageData);
     }
 
-    // Log the page data being collected for debugging
-    console.log(`Collected Data: ${JSON.stringify(pageData, null, 2)}`);
-
-    // Store the page data into the final scraped data
-    scrapedData.push(pageData);
-
+    await browser.close();
   } catch (error) {
     console.error(`Error scraping ${url}: ${error.message}`);
   }
@@ -136,7 +121,6 @@ async function scrapePage(url, currentDepth, maxDepth) {
 
   // Commit and push the scraped data to GitHub
   try {
-    // Check if there are any changes to commit
     execSync('git config --global user.name "github-actions[bot]"');
     execSync('git config --global user.email "github-actions[bot]@users.noreply.github.com"');
     
