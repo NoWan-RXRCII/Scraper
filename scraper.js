@@ -2,13 +2,11 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
 
-// Array of starting URLs to scrape
+// Updated array of starting URLs to scrape
 const baseUrls = [
-  'https://help.solidworks.com/2025/english/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks_namespace.html?id=f8d6d8535f3a49e7ad0538d96c234df8#Pg0',
+  'https://help.solidworks.com/2025/english/api/swdocmgrapi/SolidWorks.Interop.swdocumentmgr~SolidWorks.Interop.swdocumentmgr_namespace.html?id=4044b78005984a01922553042935a3bc#Pg0',
   'https://help.solidworks.com/2025/english/api/swconst/SolidWorks.Interop.swconst~SolidWorks.Interop.swconst_namespace.html?id=4c923420736a49a98458345fd708984e#Pg0',
-  'https://help.solidworks.com/2025/english/api/SWHelp_List.html?id=24fa32e6abfe4e9384060ed91220d29b#Pg0',
-  'https://help.solidworks.com/2025/english/api/SWHelp_List.html?id=a18edefdb6f84d02b62a327123832d52#Pg0',
-  'https://help.solidworks.com/2025/english/api/SWHelp_List.html?id=80c5e679128e44599bfa417383245607#Pg0'
+  'https://help.solidworks.com/2025/english/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks_namespace.html?id=f8d6d8535f3a49e7ad0538d96c234df8#Pg0'
 ];
 
 // Array to store scraped data
@@ -35,51 +33,9 @@ async function scrapePage(url, currentDepth, maxDepth) {
     });
     const $ = cheerio.load(response.data);
 
-    // Scrape constants and their descriptions
-    if (currentDepth <= maxDepth) {
-      $('code').each((index, element) => {
-        let constantName = $(element).text();
-        let description = $(element).parent().next('p').text();
-
-        scrapedData.push({
-          constant: constantName,
-          description: description,
-          url: url // Store the page URL
-        });
-      });
-    }
-
-    // If at Level 3, scrape only the main body and example section
-    if (currentDepth === maxDepth) {
-      const mainBody = $('body').text().trim();
-      scrapedData.push({
-        depth: currentDepth,
-        body: mainBody,
-        url: url
-      });
-
-      // Check for links in the "example section" and go one more level deep
-      $('section.example a').each(async (index, link) => {
-        let exampleUrl = $(link).attr('href');
-
-        // If the link is relative, make it absolute
-        if (exampleUrl && !exampleUrl.startsWith('http')) {
-          exampleUrl = `https://help.solidworks.com${exampleUrl}`;
-        }
-
-        // Follow links in the example section
-        if (exampleUrl && exampleUrl.startsWith('https://help.solidworks.com/')) {
-          await scrapePage(exampleUrl, currentDepth + 1, maxDepth + 1); // One extra level for example links
-        }
-      });
-
-      return; // Stop after scraping the main body and example section
-    }
-
-    // Collect links on the page and go deeper
-    if (currentDepth < maxDepth) {
-      const links = $('a');
-      $(links).each(async (index, link) => {
+    // At Level 1, restrict to links within "#interfaceSection"
+    if (currentDepth === 1) {
+      $('#interfaceSection a').each(async (index, link) => {
         let newUrl = $(link).attr('href');
 
         // If the link is relative, make it absolute
@@ -87,12 +43,45 @@ async function scrapePage(url, currentDepth, maxDepth) {
           newUrl = `https://help.solidworks.com${newUrl}`;
         }
 
-        // Only follow links that are within the same SolidWorks documentation domain
-        if (newUrl && newUrl.startsWith('https://help.solidworks.com/')) {
+        // Only follow links that match the base parent names
+        if (newUrl && (newUrl.includes('SolidWorks.Interop.swdocumentmgr') ||
+                       newUrl.includes('SolidWorks.Interop.swconst') ||
+                       newUrl.includes('SolidWorks.Interop.sldworks'))) {
           await scrapePage(newUrl, currentDepth + 1, maxDepth);
         }
       });
     }
+
+    // At Level 2, scrape the example section and stop after one level deeper
+    if (currentDepth === 2) {
+      $('#exampleSection a').each(async (index, link) => {
+        let exampleUrl = $(link).attr('href');
+
+        // If the link is relative, make it absolute
+        if (exampleUrl && !exampleUrl.startsWith('http')) {
+          exampleUrl = `https://help.solidworks.com${exampleUrl}`;
+        }
+
+        // Follow example links one level deeper
+        if (exampleUrl && exampleUrl.startsWith('https://help.solidworks.com/')) {
+          await scrapePage(exampleUrl, currentDepth + 1, maxDepth);
+        }
+      });
+
+      return; // Stop after processing the example section
+    }
+
+    // Collect content for the current page
+    $('code').each((index, element) => {
+      let constantName = $(element).text();
+      let description = $(element).parent().next('p').text();
+
+      scrapedData.push({
+        constant: constantName,
+        description: description,
+        url: url // Store the page URL
+      });
+    });
 
   } catch (error) {
     console.error(`Error scraping ${url}: ${error.message}`);
@@ -101,10 +90,10 @@ async function scrapePage(url, currentDepth, maxDepth) {
 
 // Start scraping all the base URLs
 (async () => {
-  const maxDepth = 3; // Define the maximum depth to scrape
+  const maxDepth = 2; // Adjusted maximum depth
 
   for (let baseUrl of baseUrls) {
-    await scrapePage(baseUrl, 1, maxDepth); // Start scraping with an initial depth of 1
+    await scrapePage(baseUrl, 0, maxDepth); // Start scraping with an initial depth of 0
   }
 
   // Save the scraped data to a JSON file
