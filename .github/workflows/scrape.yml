@@ -6,7 +6,8 @@ on:
 jobs:
   run-scraper:
     runs-on: windows-latest  # This will run the job on a Windows server
-
+    permissions:
+        contents: write  # Grants write permission to push changes
     steps:
       # Step 1: Checkout the repository code
       - name: Checkout repository
