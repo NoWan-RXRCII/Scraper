@@ -53,7 +53,7 @@ jobs:
       shell: bash
       run: |
         set -e
-        git config --global user.name  "github-actions[bot]"
+        git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
         # Stage the output file
@@ -67,7 +67,7 @@ jobs:
 
         # Commit and re-base on top of any remote changes
         git commit -m "chore: update scraped data"
-        git pull --rebase --autostash origin main
+        git pull --rebase origin main
 
         # Push our rebased commit
         git push origin HEAD:main
