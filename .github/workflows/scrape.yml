@@ -11,10 +11,12 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    # 1. Check out the repo
+    # 1. Check out the repo (full history so we can re-base)
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-    # 2. Set up Node.js and enable npm-cache support
+    # 2. Set up Node.js and enable npm-cache
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
@@ -36,14 +38,13 @@ jobs:
       with:
         path: scrapedData.json
         key: scraped-${{ runner.os }}-${{ hashFiles('scrapedData.json') }}
-        restore-keys: |
-          scraped-${{ runner.os }}-
+        restore-keys: scraped-${{ runner.os }}-
 
-    # 6. Verify the file was created
+    # 6. Verify the file exists
     - name: Verify scrapedData.json exists
       shell: pwsh
       run: |
-        if (-Not (Test-Path "scrapedData.json")) {
+        if (-not (Test-Path "scrapedData.json")) {
           Write-Error "scrapedData.json does not exist!"
         }
 
@@ -51,8 +52,22 @@ jobs:
     - name: Commit and push scraped data
       shell: bash
       run: |
+        set -e
         git config --global user.name  "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+        # Stage the output file
         git add scrapedData.json
-        git diff --cached --quiet || git commit -m "Update scraped data"
+
+        # Exit early if nothing to commit
+        if git diff --cached --quiet; then
+          echo "No changes to commit."
+          exit 0
+        fi
+
+        # Commit and re-base on top of any remote changes
+        git commit -m "chore: update scraped data"
+        git pull --rebase --autostash origin main
+
+        # Push our rebased commit
         git push origin HEAD:main
