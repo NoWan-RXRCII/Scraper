@@ -19,17 +19,19 @@ let visitedUrls = new Set();
 // Function to scrape a page
 async function scrapePage(url) {
   if (visitedUrls.has(url)) {
-    return;  // Skip if the URL is already visited
+    return; // Skip if the URL is already visited
   }
 
   try {
     console.log(`Scraping: ${url}`);
-    
+
     // Mark this URL as visited
     visitedUrls.add(url);
 
     // Fetch the page content
-    const response = await axios.get(url);
+    const response = await axios.get(url, {
+      headers: { 'User-Agent': 'MyScraperBot/1.0' } // Added User-Agent to avoid being blocked
+    });
     const $ = cheerio.load(response.data);
 
     // Scrape constants and their descriptions
@@ -40,13 +42,13 @@ async function scrapePage(url) {
       scrapedData.push({
         constant: constantName,
         description: description,
-        url: url  // Store the page URL
+        url: url // Store the page URL
       });
     });
 
     // Follow links on the page, but only those within the same domain
     const links = $('a');
-    $(links).each((index, link) => {
+    $(links).each(async (index, link) => {
       let newUrl = $(link).attr('href');
 
       // If the link is relative, make it absolute
@@ -56,19 +58,19 @@ async function scrapePage(url) {
 
       // Only follow links that are within the same SolidWorks documentation domain
       if (newUrl && newUrl.startsWith('https://help.solidworks.com/')) {
-        scrapePage(newUrl);  // Recursively scrape linked pages
+        await scrapePage(newUrl); // Recursively scrape linked pages
       }
     });
-    
+
   } catch (error) {
-    console.error(`Error scraping ${url}:`, error);
+    console.error(`Error scraping ${url}: ${error.message}`);
   }
 }
 
 // Start scraping all the base URLs
 (async () => {
   for (let baseUrl of baseUrls) {
-    await scrapePage(baseUrl);  // Scrape each URL in the list
+    await scrapePage(baseUrl); // Scrape each URL in the list
   }
 
   // Save the scraped data to a JSON file
