@@ -4,10 +4,10 @@ const fs = require('fs');
 
 // Array of starting URLs to scrape
 const baseUrls = [
-  'https://help.solidworks.com/2025/english/api/SWHelp_List.html?id=e9a912d06e17425f80be7e8805dc03a6#Pg0',
-  'https://help.solidworks.com/2025/english/api/sldworksapi/FunctionalCategories-sldworksapi.html?id=ba81b44c99b64f61b8214eaaa7b0cb06#Pg0',
-  'https://help.solidworks.com/2025/english/api/SWHelp_List.html?id=79ca6baa542f4fa8a000139ea01071f1#Pg0',
-  'https://help.solidworks.com/2025/english/api/SWHelp_List.html?id=75019a46d48b452fbb81e7713d6ce7b1#Pg0'
+  'https://help.solidworks.com/2025/english/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks_namespace.html?id=f8d6d8535f3a49e7ad0538d96c234df8#Pg0',
+  'https://help.solidworks.com/2025/english/api/swconst/SolidWorks.Interop.swconst~SolidWorks.Interop.swconst_namespace.html?id=4c923420736a49a98458345fd708984e#Pg0',
+  'https://help.solidworks.com/2025/english/api/SWHelp_List.html?id=24fa32e6abfe4e9384060ed91220d29b#Pg0',
+  'https://help.solidworks.com/2025/english/api/SWHelp_List.html?id=a18edefdb6f84d02b62a327123832d52#Pg0'
 ];
 
 // Array to store scraped data
@@ -16,7 +16,7 @@ let scrapedData = [];
 // Set to track visited URLs to avoid scraping the same page
 let visitedUrls = new Set();
 
-// Function to scrape a page
+// Function to scrape a page (one level deep)
 async function scrapePage(url) {
   if (visitedUrls.has(url)) {
     return; // Skip if the URL is already visited
@@ -46,9 +46,9 @@ async function scrapePage(url) {
       });
     });
 
-    // Follow links on the page, but only those within the same domain
+    // Collect links on the page (only one level deep)
     const links = $('a');
-    $(links).each(async (index, link) => {
+    $(links).each((index, link) => {
       let newUrl = $(link).attr('href');
 
       // If the link is relative, make it absolute
@@ -58,7 +58,10 @@ async function scrapePage(url) {
 
       // Only follow links that are within the same SolidWorks documentation domain
       if (newUrl && newUrl.startsWith('https://help.solidworks.com/')) {
-        await scrapePage(newUrl); // Recursively scrape linked pages
+        scrapedData.push({
+          linkedUrl: newUrl,
+          parentUrl: url // Store the parent page URL
+        });
       }
     });
 
