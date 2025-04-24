@@ -3,11 +3,13 @@ name: Run Node.js Scraper
 on:
   workflow_dispatch:  # Trigger the workflow manually via GitHub UI
 
+permissions:
+  contents: write  # Grants write permission to push changes
+
 jobs:
   run-scraper:
     runs-on: windows-latest  # This will run the job on a Windows server
-    permissions:
-        contents: write  # Grants write permission to push changes
+
     steps:
       # Step 1: Checkout the repository code
       - name: Checkout repository
@@ -28,12 +30,24 @@ jobs:
       - name: Run scraper
         run: |
           node scraper.js  # This will run your scraper.js file
+        # Add error handling if necessary
 
-      # Step 5: Commit and push the scraped data (if applicable)
+      # Step 5: Check if scrapedData.json exists and has changes
+      - name: Check for changes
+        run: |
+          if [ -f "scrapedData.json" ]; then
+            echo "scrapedData.json file exists."
+            git status --short | grep "scrapedData.json" || echo "No changes detected in scrapedData.json"
+          else
+            echo "Error: scrapedData.json file does not exist!"
+            exit 1
+          fi
+
+      # Step 6: Commit and push the scraped data (if applicable)
       - name: Commit and push scraped data
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add scrapedData.json  # Add the new data file (if it exists)
-          git commit -m "Update scraped data"
-          git push  # Push the changes back to the repo
+          git commit -m "Update scraped data" || echo "No changes to commit."
+          git push origin main  # Push changes to the main branch
