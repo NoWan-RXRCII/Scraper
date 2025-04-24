@@ -25,22 +25,22 @@ jobs:
     - name: Run scraper
       run: node scraper.js
 
-    - name: Check for changes
+    - name: Verify existence of scrapedData.json
       run: |
-        if (Test-Path "scrapedData.json") {
-          Write-Output "scrapedData.json file exists."
-          git status --short | Select-String "scrapedData.json" || Write-Output "No changes detected in scrapedData.json"
-        } else {
-          Write-Output "Error: scrapedData.json file does not exist!"
+        echo "Checking if scrapedData.json exists in the root directory..."
+        if [ -f "scrapedData.json" ]; then
+          echo "scrapedData.json exists."
+        else
+          echo "Error: scrapedData.json does not exist in the root directory!"
           exit 1
-        }
-      shell: pwsh
+        fi
+      shell: bash
 
     - name: Commit and push scraped data
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git add scrapedData.json
-        git commit -m "Update scraped data" || Write-Output "No changes to commit."
+        git commit -m "Update scraped data" || echo "No changes to commit."
         git push origin main
-      shell: pwsh
+      shell: bash
