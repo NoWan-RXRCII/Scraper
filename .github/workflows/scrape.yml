@@ -28,19 +28,28 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    # 4. Run the scraper
-    - name: Run scraper
-      run: node scraper.js
+    # 4. Install Chromium (for Puppeteer)
+    - name: Install Chromium dependencies
+      run: |
+        choco install chromium
 
-    # 5. Cache the scraped JSON between runs
+    # 5. Run the scraper
+    - name: Run scraper
+      run: |
+        # Set the CHROME_BIN environment variable for Puppeteer
+        $env:CHROME_BIN="C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+        node scraper.js
+
+    # 6. Cache the scraped data between runs based on the repo's state
     - name: Cache scraped data
       uses: actions/cache@v3
       with:
         path: scrapedData.json
-        key: scraped-${{ runner.os }}-${{ hashFiles('scrapedData.json') }}
-        restore-keys: scraped-${{ runner.os }}-
+        key: scraped-${{ runner.os }}-${{ hashFiles('**/*.js') }}
+        restore-keys: |
+          scraped-${{ runner.os }}-
 
-    # 6. Verify the file exists
+    # 7. Verify the file exists
     - name: Verify scrapedData.json exists
       shell: pwsh
       run: |
@@ -48,7 +57,7 @@ jobs:
           Write-Error "scrapedData.json does not exist!"
         }
 
-    # 7. Commit & push if the file changed
+    # 8. Commit & push if the file changed
     - name: Commit and push scraped data
       shell: bash
       run: |
