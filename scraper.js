@@ -1,79 +1,3 @@
-const fs = require('fs');
-const puppeteer = require('puppeteer');
-
-const baseUrls = [
-  'https://help.solidworks.com/2025/english/api/swconst/SolidWorks.Interop.swconst~SolidWorks.Interop.swconst_namespace.html?id=4c923420736a49a98458345fd708984e#Pg0',
-  'https://help.solidworks.com/2025/english/api/swdocmgrapi/SolidWorks.Interop.swdocumentmgr~SolidWorks.Interop.swdocumentmgr_namespace.html?id=4044b78005984a01922553042935a3bc#Pg0',
-  'https://help.solidworks.com/2025/english/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks_namespace.html?id=f8d6d8535f3a49e7ad0538d96c234df8#Pg0'
-];
-
-const scrapedData = [];
-const visitedUrls = new Set();
-const sleep = ms => new Promise(res => setTimeout(res, ms));
-
-async function extractDetails(page, url) {
-  const data = { url, remarks: '', accessors: [], examples: [] };
-
-  // Extract remarks if present
-  try {
-    const remarksSection = await page.$('#remarksSection');
-    if (remarksSection) {
-      data.remarks = await remarksSection.evaluate(el => el.innerText.trim());
-    }
-  } catch (error) {
-    console.error(`Error extracting remarks from ${url}: ${error.message}`);
-  }
-
-  // Extract accessors if present
-  try {
-    const accessorsSection = await page.$('#accessorsSection');
-    if (accessorsSection) {
-      data.accessors = await page.$$eval('#accessorsSection a', links =>
-        links.map(link => ({ name: link.textContent.trim(), url: link.href }))
-      );
-    }
-  } catch (error) {
-    console.error(`Error extracting accessors from ${url}: ${error.message}`);
-  }
-
-  // Extract examples if present
-  try {
-    const examplesSection = await page.$('#examplesSection');
-    if (examplesSection) {
-      const exampleLinks = await page.$$eval('#examplesSection a', links =>
-        links.map(link => link.href)
-      );
-
-      const exampleData = await Promise.all(
-        exampleLinks.map(async (exUrl) => {
-          const exPage = await page.browser().newPage();
-          try {
-            await exPage.goto(exUrl, { waitUntil: 'domcontentloaded' });
-            const code = await exPage.$eval('pre', pre => pre.innerText.trim());
-            const title = await exPage.title();
-            return { title, example_code: code };
-          } catch (error) {
-            console.error(`Error extracting example from ${exUrl}: ${error.message}`);
-            return null;
-          } finally {
-            await exPage.close();
-          }
-        })
-      );
-
-      data.examples = exampleData.filter(Boolean);
-    }
-  } catch (error) {
-    console.error(`Error extracting examples from ${url}: ${error.message}`);
-  }
-
-  // Log extracted data for debugging
-  console.log("Extracted data for:", url, data);
-
-  return data;
-}
-
-
 async function scrapeUrl(browser, url) {
   const page = await browser.newPage();
   await page.setRequestInterception(true);
@@ -83,58 +7,172 @@ async function scrapeUrl(browser, url) {
   });
 
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  await sleep(1000);
 
-  await page.evaluate(() => {
-    const btn = document.querySelector('tc-consent')?.shadowRoot?.querySelector('button#footer_tc_privacy_button');
-    if (btn) btn.click();
-  });
+  let interfaceLinks = [];
+  let enumLinks = [];
+  let syntaxText = '';
+  let members = [];
+  let examples = [];
+  let accessors = [];
 
-  let links = [];
-  if (url.includes('swconst')) {
-    try {
-      links = await page.$$eval('#enumerationSection a', anchors => anchors.map(a => a.href));
-    } catch {}
-  } else {
-    try {
-      links = await page.$$eval('#interfaceSection a', anchors => anchors.map(a => a.href));
-    } catch {}
+  // Depth 0: Scrape Interface and Enumeration sections if they exist
+  try {
+    const interfaceSection = await page.$('#interfaceSection');
+    if (interfaceSection) {
+      interfaceLinks = await page.$$eval('#interfaceSection .LinkCell', rows => {
+        return rows.map(row => {
+          const link = row.querySelector('a');
+          const description = row.querySelector('.DescriptionCell');
+          return {
+            name: link ? link.innerText.trim() : '',
+            url: link ? link.href : '',
+            description: description ? description.innerText.trim() : ''
+          };
+        });
+      });
+    }
+  } catch (err) {
+    console.error(`Error extracting interface section: ${err.message}`);
   }
 
+  try {
+    const enumSection = await page.$('#enumerationSection');
+    if (enumSection) {
+      enumLinks = await page.$$eval('#enumerationSection .LinkCell', rows => {
+        return rows.map(row => {
+          const link = row.querySelector('a');
+          const description = row.querySelector('.DescriptionCell');
+          return {
+            name: link ? link.innerText.trim() : '',
+            url: link ? link.href : '',
+            description: description ? description.innerText.trim() : ''
+          };
+        });
+      });
+    }
+  } catch (err) {
+    console.error(`Error extracting enumeration section: ${err.message}`);
+  }
+
+  // Depth 1: Scrape Syntax Section if it exists
+  try {
+    const syntaxSection = await page.$('#syntaxSection');
+    if (syntaxSection) {
+      syntaxText = await page.$eval('#syntaxSection', el => el.innerText.trim());
+    }
+  } catch (err) {
+    console.error(`Error extracting syntax section: ${err.message}`);
+  }
+
+  // Depth 1: Scrape Members Section if it exists
+  try {
+    const membersSection = await page.$('#membersSection');
+    if (membersSection) {
+      members = await page.$$eval('#membersSection .memberRow', rows => {
+        return rows.map(row => {
+          const memberName = row.querySelector('.memberName');
+          const memberDescription = row.querySelector('.memberDescription');
+          return {
+            name: memberName ? memberName.innerText.trim() : 'Member',
+            description: memberDescription ? memberDescription.innerText.trim() : ''
+          };
+        });
+      });
+    }
+  } catch (err) {
+    console.error(`Error extracting members section: ${err.message}`);
+  }
+
+  // Depth 1: Scrape Example Section if it exists (Links to Depth 2)
+  try {
+    const exampleSection = await page.$('#exampleSection');
+    if (exampleSection) {
+      examples = await page.$$eval('#exampleSection a', links => links.map(link => ({
+        title: link.innerText.trim(),
+        url: link.href
+      })));
+    }
+  } catch (err) {
+    console.error(`Error extracting example section: ${err.message}`);
+  }
+
+  // Depth 1: Scrape Accessor Section if it exists (Links to Depth 2)
+  try {
+    const accessorSection = await page.$('#accessorSection');
+    if (accessorSection) {
+      accessors = await page.$$eval('#accessorSection a', links => links.map(link => ({
+        name: link.innerText.trim(),
+        url: link.href
+      })));
+    }
+  } catch (err) {
+    console.error(`Error extracting accessor section: ${err.message}`);
+  }
+
+  // Follow the links in the Example Section (Depth 2) and scrape the example code
+  for (const example of examples) {
+    const examplePageData = await scrapeExamplePage(page, example.url);
+    examples.push(examplePageData); // Append the example data to the array
+  }
+
+  // Follow the links in the Accessor Section (Depth 2) and scrape the syntax
+  for (const accessor of accessors) {
+    const accessorPageData = await scrapeAccessorPage(page, accessor.url);
+    accessors.push(accessorPageData); // Append the accessor data to the array
+  }
+
+  // Log the extracted data for Depth 0 and Depth 1
+  console.log("Extracted interface links and descriptions:", interfaceLinks);
+  console.log("Extracted enumeration links and descriptions:", enumLinks);
+  console.log("Extracted syntax text:", syntaxText);
+  console.log("Extracted members data:", members);
+  console.log("Extracted examples:", examples);
+  console.log("Extracted accessors:", accessors);
+
   await page.close();
-
-  const subPages = [...new Set(links.filter(link => !visitedUrls.has(link)))];
-  subPages.forEach(link => visitedUrls.add(link));
-
-  return subPages;
+  return {
+    interfaceLinks,
+    enumLinks,
+    syntaxText,
+    members,
+    examples,
+    accessors
+  };
 }
 
-(async () => {
-  const browser = await puppeteer.launch({
-    headless: false,
-    args: ['--window-size=1280,800']
-  });
+// Depth 2: Scrape the example code from the linked page (from Example Section)
+async function scrapeExamplePage(page, url) {
+  const data = { url, codeExamples: [] };
 
-  const allLinks = await Promise.all(baseUrls.map(url => scrapeUrl(browser, url)));
-  const flatLinks = allLinks.flat();
+  try {
+    // Scrape the code example from the page
+    const code = await page.$$eval('div, p', blocks => {
+      return blocks.filter(block => block.textContent.includes('using') || block.textContent.includes('public class')).map(block => block.innerText.trim());
+    });
 
-  const detailPages = await Promise.all(
-    flatLinks.map(async (link) => {
-      const detailPage = await browser.newPage();
-      try {
-        await detailPage.goto(link, { waitUntil: 'domcontentloaded' });
-        const data = await extractDetails(detailPage, link);
-        return data;
-      } catch {
-        return null;
-      } finally {
-        await detailPage.close();
-      }
-    })
-  );
+    if (code.length > 0) {
+      data.codeExamples = code;
+    } else {
+      console.warn(`No example code found on ${url}`);
+    }
+  } catch (err) {
+    console.error(`Error extracting code from example page ${url}: ${err.message}`);
+  }
 
-  scrapedData.push(...detailPages.filter(Boolean));
-  await browser.close();
+  return data;
+}
 
-  fs.writeFileSync('scrapedData.json', JSON.stringify(scrapedData, null, 2));
-})();
+// Depth 2: Scrape the accessor syntax from the linked page (from Accessor Section)
+async function scrapeAccessorPage(page, url) {
+  const data = { url, accessorSyntax: '' };
+
+  try {
+    // Extract the syntax for the accessor (from the page)
+    const syntax = await page.$eval('#syntaxSection', el => el.innerText.trim());
+    data.accessorSyntax = syntax;
+  } catch (err) {
+    console.error(`Error extracting accessor syntax from ${url}: ${err.message}`);
+  }
+
+  return data;
+}
