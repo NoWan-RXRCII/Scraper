@@ -15,36 +15,17 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Verify package-lock.json exists
-      run: |
-        if [ ! -f "package-lock.json" ]; then
-          echo "Error: package-lock.json is missing."
-          exit 1
-        fi
-
-    - name: Cache node_modules
-      uses: actions/cache@v3
-      with:
-        path: |
-          node_modules
-        key: node-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          node-${{ runner.os }}-
-
+    # Set up Node.js
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: 'package-lock.json'
 
+    # Install dependencies
     - name: Install dependencies
-      run: npm ci
+      run: npm install
 
-    - name: List workspace files
-      run: |
-        dir
-
+    # Run the scraper
     - name: Run scraper
       run: |
         $env:CHROME_BIN="C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
