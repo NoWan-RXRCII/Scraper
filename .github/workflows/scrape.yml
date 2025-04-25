@@ -16,47 +16,29 @@ jobs:
       with:
         fetch-depth: 0
 
-    # 2. Cache node_modules (to avoid reinstalling dependencies)
-    - name: Cache node_modules
-      uses: actions/cache@v3
-      with:
-        path: node_modules
-        key: node-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          node-${{ runner.os }}-
-
-    # 3. Set up Node.js
+    # 2. Set up Node.js
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
 
-    # 4. Install dependencies only if not cached
+    # 3. Install dependencies
     - name: Install dependencies
       run: npm ci
 
-    # 5. Install Chromium (no cache for Chromium installation)
+    # 4. Install Chromium (no cache for Chromium installation)
     - name: Install Chromium (for Puppeteer)
       run: |
         choco install chromium --no-progress -y
 
-    # 6. Run the scraper
+    # 5. Run the scraper
     - name: Run scraper
       run: |
         # Set the CHROME_BIN environment variable for Puppeteer
         $env:CHROME_BIN="C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
         node scraper.js
 
-    # 7. Cache the scraped data (scrapedData.json) between runs
-    - name: Cache scraped data
-      uses: actions/cache@v3
-      with:
-        path: scrapedData.json
-        key: scraped-${{ runner.os }}-${{ hashFiles('scrapedData.json') }}
-        restore-keys: |
-          scraped-${{ runner.os }}-
-
-    # 8. Verify scrapedData.json exists
+    # 6. Verify scrapedData.json exists
     - name: Verify scrapedData.json exists
       shell: pwsh
       run: |
@@ -64,7 +46,7 @@ jobs:
           Write-Error "scrapedData.json does not exist!"
         }
 
-    # 9. Commit & push the scraped data if it changed
+    # 7. Commit & push the scraped data if it changed
     - name: Commit and push scraped data
       shell: bash
       run: |
@@ -81,7 +63,7 @@ jobs:
           exit 0
         fi
 
-        # Commit and re-base on top of any remote changes
+        # Commit and rebase on top of any remote changes
         git commit -m "chore: update scraped data"
         git pull --rebase origin main
 
