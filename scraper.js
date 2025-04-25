@@ -14,39 +14,58 @@ const sleep = ms => new Promise(res => setTimeout(res, ms));
 async function extractDetails(page, url) {
   const data = { url, remarks: '', accessors: [], examples: [] };
 
+  // Extract remarks if present
   try {
-    data.remarks = await page.$eval('#remarksSection', el => el.innerText.trim());
-  } catch {}
+    const remarksSection = await page.$('#remarksSection');
+    if (remarksSection) {
+      data.remarks = await remarksSection.evaluate(el => el.innerText.trim());
+    }
+  } catch (error) {
+    console.error(`Error extracting remarks from ${url}: ${error.message}`);
+  }
 
+  // Extract accessors if present
   try {
-    data.accessors = await page.$$eval('#accessorsSection a', links =>
-      links.map(link => ({ name: link.textContent.trim(), url: link.href }))
-    );
-  } catch {}
+    const accessorsSection = await page.$('#accessorsSection');
+    if (accessorsSection) {
+      data.accessors = await page.$$eval('#accessorsSection a', links =>
+        links.map(link => ({ name: link.textContent.trim(), url: link.href }))
+      );
+    }
+  } catch (error) {
+    console.error(`Error extracting accessors from ${url}: ${error.message}`);
+  }
 
+  // Extract examples if present
   try {
-    const exampleLinks = await page.$$eval('#examplesSection a', links =>
-      links.map(link => link.href)
-    );
+    const examplesSection = await page.$('#examplesSection');
+    if (examplesSection) {
+      const exampleLinks = await page.$$eval('#examplesSection a', links =>
+        links.map(link => link.href)
+      );
 
-    const exampleData = await Promise.all(
-      exampleLinks.map(async (exUrl) => {
-        const exPage = await page.browser().newPage();
-        try {
-          await exPage.goto(exUrl, { waitUntil: 'domcontentloaded' });
-          const code = await exPage.$eval('pre', pre => pre.innerText.trim());
-          const title = await exPage.title();
-          return { title, example_code: code };
-        } catch {
-          return null;
-        } finally {
-          await exPage.close();
-        }
-      })
-    );
+      const exampleData = await Promise.all(
+        exampleLinks.map(async (exUrl) => {
+          const exPage = await page.browser().newPage();
+          try {
+            await exPage.goto(exUrl, { waitUntil: 'domcontentloaded' });
+            const code = await exPage.$eval('pre', pre => pre.innerText.trim());
+            const title = await exPage.title();
+            return { title, example_code: code };
+          } catch (error) {
+            console.error(`Error extracting example from ${exUrl}: ${error.message}`);
+            return null;
+          } finally {
+            await exPage.close();
+          }
+        })
+      );
 
-    data.examples = exampleData.filter(Boolean);
-  } catch {}
+      data.examples = exampleData.filter(Boolean);
+    }
+  } catch (error) {
+    console.error(`Error extracting examples from ${url}: ${error.message}`);
+  }
 
   return data;
 }
