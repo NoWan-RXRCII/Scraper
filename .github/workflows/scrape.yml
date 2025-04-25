@@ -16,7 +16,7 @@ jobs:
       with:
         fetch-depth: 0
 
-    # 2. Cache node_modules (to avoid reinstalling dependencies)
+    # 2. Cache node_modules to avoid reinstalling dependencies
     - name: Cache node_modules
       uses: actions/cache@v3
       with:
@@ -25,13 +25,11 @@ jobs:
         restore-keys: |
           node-${{ runner.os }}-
 
-    # 3. Set up Node.js (caching npm dependencies)
+    # 3. Set up Node.js
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: 'package-lock.json'
 
     # 4. Install dependencies only if not cached
     - name: Install dependencies
