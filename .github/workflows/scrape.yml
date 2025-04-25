@@ -16,24 +16,34 @@ jobs:
       with:
         fetch-depth: 0
 
-    # 2. Set up Node.js (without any caching option)
+    # 2. Set up Node.js
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
 
-    # 3. Install dependencies directly
-    - name: Install dependencies
-      run: npm ci
+    # 3. Pre-check and generate missing dependencies if necessary
+    - name: Check and generate missing dependencies
+      run: |
+        # Check if package-lock.json exists, if not generate it
+        if (-not (Test-Path "package-lock.json")) {
+          echo "package-lock.json not found, running npm install to generate it"
+          npm install
+        }
+        
+        # Check if node_modules exists, if not install the dependencies
+        if (-not (Test-Path "node_modules")) {
+          echo "node_modules not found, running npm install"
+          npm install
+        }
 
-    # 4. Install Chromium (no cache for Chromium installation)
+    # 4. Install Chromium (for Puppeteer)
     - name: Install Chromium (for Puppeteer)
       run: |
         choco install chromium --no-progress -y
 
-    # 5. Run the scraper using PowerShell (for Windows)
+    # 5. Run the scraper
     - name: Run scraper
-      shell: pwsh
       run: |
         $env:CHROME_BIN="C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
         node scraper.js
@@ -56,7 +66,7 @@ jobs:
 
         git add scrapedData.json
 
-        # Exit early if nothing to commit
+        # Exit early if no changes to commit
         if git diff --cached --quiet; then
           echo "No changes to commit."
           exit 0
