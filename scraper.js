@@ -67,8 +67,12 @@ async function extractDetails(page, url) {
     console.error(`Error extracting examples from ${url}: ${error.message}`);
   }
 
+  // Log extracted data for debugging
+  console.log("Extracted data for:", url, data);
+
   return data;
 }
+
 
 async function scrapeUrl(browser, url) {
   const page = await browser.newPage();
