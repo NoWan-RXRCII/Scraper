@@ -21,10 +21,6 @@ jobs:
       with:
         node-version: '18'
 
-    # Install dependencies
-    - name: Install dependencies
-      run: npm install
-
     # Run the scraper
     - name: Run scraper
       run: |
