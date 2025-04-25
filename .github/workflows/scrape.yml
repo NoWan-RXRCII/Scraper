@@ -11,56 +11,41 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    # 1. Check out the repo
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
-    # 2. Set up Node.js (no caching involved)
+    - name: Verify package-lock.json exists
+      run: |
+        if [ ! -f "package-lock.json" ]; then
+          echo "Error: package-lock.json is missing."
+          exit 1
+        fi
+
+    - name: Cache node_modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          node_modules
+        key: node-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          node-${{ runner.os }}-
+
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'package-lock.json'
 
-    # 3. Install dependencies directly
     - name: Install dependencies
       run: npm ci
 
-    # 4. Install Chromium (no cache for Chromium installation)
-    - name: Install Chromium (for Puppeteer)
+    - name: List workspace files
       run: |
-        choco install chromium --no-progress -y
+        dir
 
-    # 5. Run the scraper
     - name: Run scraper
       run: |
         $env:CHROME_BIN="C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
         node scraper.js
-
-    # 6. Verify scrapedData.json exists
-    - name: Verify scrapedData.json exists
-      shell: pwsh
-      run: |
-        if (-not (Test-Path "scrapedData.json")) {
-          Write-Error "scrapedData.json does not exist!"
-        }
-
-    # 7. Commit and push scraped data if it changed
-    - name: Commit and push scraped data
-      shell: bash
-      run: |
-        set -e
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-        git add scrapedData.json
-
-        # Exit early if nothing to commit
-        if git diff --cached --quiet; then
-          echo "No changes to commit."
-          exit 0
-        fi
-
-        git commit -m "chore: update scraped data"
-        git pull --rebase origin main
-        git push origin HEAD:main
