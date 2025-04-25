@@ -43,13 +43,14 @@ jobs:
     # 5. Run the scraper (Puppeteer should automatically detect the Chromium binary installed by Chocolatey)
     - name: Run scraper
       run: |
-        node scraper.js  # Run the scraper script!
+        node scraper.js  # Run the scraper script directly
 
     # 6. Verify scrapedData.json exists
     - name: Verify scrapedData.json exists
       shell: pwsh
       run: |
-        $scrapedDataPath = "${{ github.workspace }}\scrapedData.json"  # GitHub Actions workspace path
+        # Check if scrapedData.json exists in the GitHub Actions workspace
+        $scrapedDataPath = "${{ github.workspace }}\scrapedData.json"
         if (-not (Test-Path $scrapedDataPath)) {
           Write-Error "scrapedData.json does not exist!"
         } else {
