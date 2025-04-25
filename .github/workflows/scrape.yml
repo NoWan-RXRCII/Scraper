@@ -40,19 +40,22 @@ jobs:
       run: |
         choco install chromium --no-progress -y
 
-    # 5. Run the scraper (set the correct CHROME_BIN for Puppeteer)
+    # 5. Run the scraper (correct CHROME_BIN for Puppeteer)
     - name: Run scraper
+      env:
+        CHROME_BIN: "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"  # Set CHROME_BIN environment variable for Puppeteer
       run: |
-        # Set the correct CHROME_BIN environment variable for Puppeteer
-        $env:CHROME_BIN="C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
         node scraper.js
 
-    # 6. Verify scrapedData.json exists
+    # 6. Verify scrapedData.json exists (without local paths)
     - name: Verify scrapedData.json exists
       shell: pwsh
       run: |
-        if (-not (Test-Path "scrapedData.json")) {
+        $scrapedDataPath = "${{ github.workspace }}\scrapedData.json"  # GitHub Actions workspace path
+        if (-not (Test-Path $scrapedDataPath)) {
           Write-Error "scrapedData.json does not exist!"
+        } else {
+          Write-Host "scrapedData.json exists."
         }
 
     # 7. Commit and push scraped data if it changed
@@ -65,6 +68,7 @@ jobs:
 
         git add scrapedData.json
 
+        # Exit early if nothing to commit
         if git diff --cached --quiet; then
           echo "No changes to commit."
           exit 0
