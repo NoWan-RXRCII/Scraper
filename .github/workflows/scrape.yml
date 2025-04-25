@@ -23,15 +23,13 @@ jobs:
         node-version: '18'
 
     # 3. Pre-check and generate missing dependencies if necessary
-    - name: Check and generate missing dependencies
+    - name: Check for missing dependencies and install if necessary
       run: |
-        # Check if package-lock.json exists, if not generate it
         if (-not (Test-Path "package-lock.json")) {
           echo "package-lock.json not found, running npm install to generate it"
           npm install
         }
         
-        # Check if node_modules exists, if not install the dependencies
         if (-not (Test-Path "node_modules")) {
           echo "node_modules not found, running npm install"
           npm install
@@ -42,9 +40,10 @@ jobs:
       run: |
         choco install chromium --no-progress -y
 
-    # 5. Run the scraper
+    # 5. Run the scraper (set the correct CHROME_BIN for Puppeteer)
     - name: Run scraper
       run: |
+        # Set the correct CHROME_BIN environment variable for Puppeteer
         $env:CHROME_BIN="C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
         node scraper.js
 
@@ -66,7 +65,6 @@ jobs:
 
         git add scrapedData.json
 
-        # Exit early if no changes to commit
         if git diff --cached --quiet; then
           echo "No changes to commit."
           exit 0
