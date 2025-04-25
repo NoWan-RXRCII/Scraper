@@ -16,7 +16,7 @@ jobs:
       with:
         fetch-depth: 0
 
-    # 2. Cache node_modules to avoid reinstalling dependencies
+    # 2. Cache node_modules (to avoid reinstalling dependencies)
     - name: Cache node_modules
       uses: actions/cache@v3
       with:
