@@ -16,17 +16,16 @@ jobs:
       with:
         fetch-depth: 0
 
-    # 2. Cache node_modules
+    # 2. Cache node_modules (to avoid reinstalling dependencies)
     - name: Cache node_modules
       uses: actions/cache@v3
       with:
-        path: |
-          node_modules
+        path: node_modules
         key: node-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
         restore-keys: |
           node-${{ runner.os }}-
 
-    # 3. Set up Node.js
+    # 3. Set up Node.js (caching npm dependencies)
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
@@ -34,35 +33,23 @@ jobs:
         cache: 'npm'
         cache-dependency-path: 'package-lock.json'
 
-    # 4. Install dependencies
+    # 4. Install dependencies only if not cached
     - name: Install dependencies
       run: npm ci
 
-    # 5. Cache Chromium
-    - name: Cache Chromium (for Puppeteer)
-      uses: actions/cache@v3
-      with:
-        path: C:\Program Files (x86)\Google\Chrome\Application
-        key: chrome-${{ runner.os }}-chromium
-        restore-keys: |
-          chrome-${{ runner.os }}-
-
-    # 6. Install Chromium (retry logic added)
+    # 5. Install Chromium (no cache for Chromium installation)
     - name: Install Chromium (for Puppeteer)
       run: |
-        for ($i=0; $i -lt 3; $i++) {
-          choco install chromium --no-progress -y && break
-          Start-Sleep -Seconds 10
-        }
+        choco install chromium --no-progress -y
 
-    # 7. Run the scraper
+    # 6. Run the scraper
     - name: Run scraper
       run: |
         # Set the CHROME_BIN environment variable for Puppeteer
         $env:CHROME_BIN="C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
         node scraper.js
 
-    # 8. Cache scraped data
+    # 7. Cache the scraped data (scrapedData.json) between runs
     - name: Cache scraped data
       uses: actions/cache@v3
       with:
@@ -71,7 +58,7 @@ jobs:
         restore-keys: |
           scraped-${{ runner.os }}-
 
-    # 9. Verify scrapedData.json
+    # 8. Verify scrapedData.json exists
     - name: Verify scrapedData.json exists
       shell: pwsh
       run: |
@@ -79,7 +66,7 @@ jobs:
           Write-Error "scrapedData.json does not exist!"
         }
 
-    # 10. Commit & push scraped data
+    # 9. Commit & push the scraped data if it changed
     - name: Commit and push scraped data
       shell: bash
       run: |
@@ -90,7 +77,7 @@ jobs:
         # Stage the output file
         git add scrapedData.json
 
-        # Exit early if nothing to commit
+        # Exit early if no changes to commit
         if git diff --cached --quiet; then
           echo "No changes to commit."
           exit 0
@@ -100,5 +87,5 @@ jobs:
         git commit -m "chore: update scraped data"
         git pull --rebase origin main
 
-        # Push our rebased commit
+        # Push the rebased commit
         git push origin HEAD:main
