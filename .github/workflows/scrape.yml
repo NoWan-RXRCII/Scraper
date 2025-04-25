@@ -8,22 +8,19 @@ permissions:
 
 jobs:
   run-scraper:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
-    # Set up Node.js without caching
-    - name: Set up Node.js (No Cache)
+    # Set up Node.js using nvm for Linux
+    - name: Set up Node.js (Linux)
       run: |
         curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
         export NVM_DIR="$HOME/.nvm"
         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
         nvm install 18
-        nvm use 18
         node -v
         npm -v
 
