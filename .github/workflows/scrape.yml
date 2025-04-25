@@ -11,22 +11,18 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
-    # Set up Node.js
+    # Set up Node.js with caching disabled
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
-
-    # Install Google Chrome
-    - name: Install Google Chrome
-      run: choco install googlechrome
+        cache: 'false'
 
     # Run the scraper
     - name: Run scraper
-      run: |
-        $env:CHROME_BIN="C:\Program Files\Google\Chrome\Application\chrome.exe"
-        node scraper.js
+      run: node scraper.js
