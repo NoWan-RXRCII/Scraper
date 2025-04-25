@@ -21,8 +21,12 @@ jobs:
       with:
         node-version: '18'
 
+    # Install Google Chrome
+    - name: Install Google Chrome
+      run: choco install googlechrome
+
     # Run the scraper
     - name: Run scraper
       run: |
-        $env:CHROME_BIN="C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+        $env:CHROME_BIN="C:\Program Files\Google\Chrome\Application\chrome.exe"
         node scraper.js
